@@ -16,6 +16,7 @@ var casper = require('casper').create({
 });
 var util = require('utils');
 var isLoggedIn = false;
+var fileName = '';
 
 // check for command `args`
 if (casper.cli.args.length < 2) {
@@ -227,9 +228,23 @@ casper.then(function() {
     if (DEBUG) {
         util.dump(res);
     }
-    var fileName = "mutasi_" + username+"_"+ whatYear + whatMonth + ".csv";
+    fileName = "mutasi_" + username+"_"+ whatYear + whatMonth + ".csv";
     casper.download(res.action, fileName, "POST", res.post);
     console.log("[RES] = "+ fileName);
+});
+
+casper.then(function() {
+    // validate the file
+    var fs = require('fs');
+    var content = fs.read(fileName);
+
+    // Sometimes the server give `sementara transaksi anda tidak dapat diproses`
+    // if we found any indication of HTML table inside the CSV
+    // then die properly
+    if (content.indexOf("<table") !== -1) {
+        console.log("[ERR] Server is down");
+        die(500);
+    }
 });
 
 casper.then(function() {
