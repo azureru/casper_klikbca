@@ -75,6 +75,9 @@ casper.on("resource.error", function(resourceError) {
     if (resourceError.errorCode == 301) {
         return;
     }
+    if (resourceError.errorCode == 203) {
+        return;
+    }
     if (resourceError.errorCode == 5) {
         return;
     }
