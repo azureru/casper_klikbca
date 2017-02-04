@@ -5,8 +5,8 @@
 //    422 bad param / user / password
 //    500 error!
 
-var DEBUG   = true;
-var VERBOSE = true;
+var DEBUG   = false;
+var VERBOSE = false;
 
 var casper = require('casper').create({
     verbose  : VERBOSE,
