@@ -11,23 +11,24 @@ var DEBUG   = false;
 var VERBOSE = false;
 
 var casper = require('casper').create({
-    verbose: VERBOSE,
-    logLevel: (VERBOSE) ? "debug" : "error"
+    verbose  : VERBOSE,
+    logLevel : (VERBOSE) ? "debug" : "error"
 });
-var util = require('utils');
+var util       = require('utils');
 var isLoggedIn = false;
 
 // check for command `args`
 if (casper.cli.args.length < 2) {
-    console.log("[ERR] Username and password is required!");
-    console.log("[ERR] Usage: casperjs klikbca.js username password");
-    die(422);
+    die(422, 'Username and Password is required');
 }
 
 // Basically do a clean exit (if logged in the attempt to logout first)
-function die(optCode) {
-    if (optCode == null || typeof optCode == "undefined") {
+function die(optCode, msg) {
+    if (optCode === null || typeof optCode == "undefined") {
         optCode = 500;
+    }
+    if (typeof msg !== "undefined") {
+        console.log("[ERR] " + msg);
     }
 
     if (isLoggedIn) {
@@ -49,7 +50,6 @@ function die(optCode) {
     });
 }
 
-
 // error handlers
 phantom.onError = function(msg, trace) {
   var msgStack = ['[ERR] ' + msg];
@@ -59,29 +59,26 @@ phantom.onError = function(msg, trace) {
       msgStack.push(' -> ' + (t.file || t.sourceURL) + ': ' + t.line + (t.function ? ' (in function ' + t.function +')' : ''));
     });
   }
-  console.error(msgStack.join('\n'));
-  phantom.exit(500);
+  die(500, msgStack.join('\n'));
 };
 casper.on("remote.message", function(msg) {
-    this.echo("Console: " + msg);
+    if (VERBOSE) {
+        this.echo("Console: " + msg);
+    }
 });
 casper.on("remote.alert", function(msg) {
-    this.echo("[ERR] " + msg);
+    // if there's alert - we consider it as blocking
+    // it's probably a validation error
+    die(422, msg);
 });
 casper.on("page.error", function(msg, trace) {
-    this.echo("[ERR] " + msg);
+    die(500, msg);
 });
 casper.on("resource.error", function(resourceError) {
-    if (resourceError.errorCode == 301) {
+    if (resourceError.errorCode == 301 || resourceError.errorCode == 203 || resourceError.errorCode == 5) {
         return;
     }
-    if (resourceError.errorCode == 203) {
-        return;
-    }
-    if (resourceError.errorCode == 5) {
-        return;
-    }
-    this.echo("[ERR] " + JSON.stringify(resourceError, undefined, 4));
+    die(500, JSON.stringify(resourceError, undefined, 4));
 });
 
 // parse the username and password from param
@@ -95,11 +92,8 @@ casper.start('https://ibank.klikbca.com', function() {
         document.getElementById('pswd').value    = password;
         document.querySelector("input[name='value(Submit)']").click();
     }, {username : username, password: password});
-    console.log("[LOGIN] " + username);
-});
-casper.then(function() {
-    if (DEBUG) {
-        this.capture('bca-login.png');
+    if (VERBOSE) {
+        console.log("[LOGIN] " + username);
     }
 });
 
@@ -108,8 +102,7 @@ casper.then(function() {
     // validate it first!
     if (this.exists('#Layer1')) {
         // if we still found a layer1 - we still stuck on the login form
-        console.log("[ERR] Login Failed...");
-        die(422);
+        die(422, 'Login failed...');
     } else {
         isLoggedIn = true;
     }
@@ -118,7 +111,7 @@ casper.then(function() {
     var clickAccountInformation = casper.evaluate(function() {
         var menu        = document.getElementsByName("menu")[0];
         var menuContent = menu.contentWindow;
-        if (typeof menuContent !== 'undefined' && menuContent != null) {
+        if (typeof menuContent !== 'undefined' && menuContent !== null) {
             var mutasiA = menuContent.document.getElementsByTagName("a")[4];
             mutasiA.click();
             return true;
@@ -126,33 +119,32 @@ casper.then(function() {
             return false;
         }
     });
-    if (!clickAccountInformation) {
-        die(500);
+    if (clickAccountInformation === false) {
+        return die(500, 'Evaluate error - probably a layout change?');
     }
 });
-casper.then(function() {
-    if (DEBUG) {
-        this.capture('bca-informasi-rekening.png');
-    }
-});
-
 
 // Iterate Menu link
 casper.then(function() {
-    casper.evaluate(function() {
+    var getMenu = casper.evaluate(function() {
         var menu = document.getElementsByName("menu")[0];
         var menuContent = menu.contentWindow;
-        if (typeof menuContent !== 'undefined' && menuContent != null) {
+        if (typeof menuContent !== 'undefined' && menuContent !== null) {
             var mutasiA = menuContent.document.getElementsByTagName("a")[1];
             mutasiA.click();
+            return true;
         }
+        return false;
     });
+    if (getMenu === false) {
+        return die(500, 'Evaluate error - probably a layout change?');
+    }
 });
 casper.then(function() {
     var balance = this.page.evaluate(function() {
         var atm = document.getElementsByName("atm")[0];
         var atmContent = atm.contentWindow;
-        if (typeof atmContent !== 'undefined' && atmContent != null) {
+        if (typeof atmContent !== 'undefined' && atmContent !== null) {
             var tdBalance = atmContent.document.getElementsByTagName("td")[14];
             var value = tdBalance.innerText;
             return value;
@@ -160,11 +152,15 @@ casper.then(function() {
             return false;
         }
     });
+    if (balance === false) {
+        return die(500, 'Evaluate error - probably a layout change?');
+    }
+
     // remove commas and round the value
     balance = balance.replace(/[\,]/g,'');
     balance = Math.round(balance);
     if (balance !== false) {
-        console.log("[RES] = "+balance);
+        console.log(balance);
     }
 });
 

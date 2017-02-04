@@ -11,74 +11,25 @@ var DEBUG   = false;
 var VERBOSE = false;
 
 var casper = require('casper').create({
-    verbose: VERBOSE,
-    logLevel: (VERBOSE) ? "debug" : "error"
+    verbose  : VERBOSE,
+    logLevel : (VERBOSE) ? "debug" : "error"
 });
-var util = require('utils');
+var util       = require('utils');
 var isLoggedIn = false;
-var fileName = '';
+var fileName   = '';
 
 // check for command `args`
 if (casper.cli.args.length < 2) {
-    console.log("[ERR] Username and password is required!");
-    console.log("[ERR] Usage: casperjs klikbca.js username password");
-    casper.exit(422);
+    die(422, 'Username and Password is required');
 }
 
-// error handlers
-phantom.onError = function(msg, trace) {
-  var msgStack = ['[ERR] ' + msg];
-  if (trace && trace.length) {
-    msgStack.push('[Stack]: ');
-    trace.forEach(function(t) {
-      msgStack.push(' -> ' + (t.file || t.sourceURL) + ': ' + t.line + (t.function ? ' (in function ' + t.function +')' : ''));
-    });
-  }
-  console.error(msgStack.join('\n'));
-  phantom.exit(500);
-};
-casper.on("remote.message", function(msg) {
-    this.echo("Console: " + msg);
-});
-casper.on("remote.alert", function(msg) {
-    this.echo("[ERR] " + msg);
-});
-casper.on("page.error", function(msg, trace) {
-    this.echo("[ERR] " + msg);
-});
-casper.on("resource.error", function(resourceError) {
-    if (resourceError.errorCode == 301) {
-        return;
-    }
-    if (resourceError.errorCode == 203) {
-        return;
-    }
-    if (resourceError.errorCode == 5) {
-        return;
-    }
-    this.echo("[ERR] " + JSON.stringify(resourceError, undefined, 4));
-});
-
-// parse the username and password from param
-var username = casper.cli.args[0];
-var password = casper.cli.args[1];
-
-// get date of last month
-var date     = new Date();
-var firstDay = new Date(date.getFullYear(), date.getMonth() - 1 , 1);
-var lastDay  = new Date(date.getFullYear(), date.getMonth(), 0);
-
-// construct a padded DateMonth
-var whatMonth = String("0" + lastDay.getMonth()+1).slice(-2);
-var whatYear  = lastDay.getFullYear();
-var firstDayString = String("0" + firstDay.getDate()).slice(-2) + whatMonth;
-var lastDayString  = String("0" + lastDay.getDate()).slice(-2) + whatMonth;
-console.log("[MONTH] "+firstDayString+" - "+lastDayString);
-
 // Basically do a clean exit (if logged in the attempt to logout first)
-function die(optCode) {
-    if (optCode == null || typeof optCode == "undefined") {
+function die(optCode, msg) {
+    if (optCode === null || typeof optCode == "undefined") {
         optCode = 500;
+    }
+    if (typeof msg !== "undefined") {
+        console.log("[ERR] " + msg);
     }
 
     if (isLoggedIn) {
@@ -100,6 +51,54 @@ function die(optCode) {
     });
 }
 
+// error handlers
+phantom.onError = function(msg, trace) {
+  var msgStack = ['[ERR] ' + msg];
+  if (trace && trace.length) {
+    msgStack.push('[Stack]: ');
+    trace.forEach(function(t) {
+      msgStack.push(' -> ' + (t.file || t.sourceURL) + ': ' + t.line + (t.function ? ' (in function ' + t.function +')' : ''));
+    });
+  }
+  die(500, msgStack.join('\n'));
+};
+casper.on("remote.message", function(msg) {
+    if (VERBOSE) {
+        this.echo("Console: " + msg);
+    }
+});
+casper.on("remote.alert", function(msg) {
+    // if there's alert - we consider it as blocking
+    // it's probably a validation error
+    die(422, msg);
+});
+casper.on("page.error", function(msg, trace) {
+    die(500, msg);
+});
+casper.on("resource.error", function(resourceError) {
+    if (resourceError.errorCode == 301 || resourceError.errorCode == 203 || resourceError.errorCode == 5) {
+        return;
+    }
+    die(500, JSON.stringify(resourceError, undefined, 4));
+});
+
+// parse the username and password from param
+var username = casper.cli.args[0];
+var password = casper.cli.args[1];
+
+// get date of last month
+var date     = new Date();
+var firstDay = new Date(date.getFullYear(), date.getMonth() - 1 , 1);
+var lastDay  = new Date(date.getFullYear(), date.getMonth(), 0);
+
+// construct a padded DateMonth
+var whatMonth = String("0" + lastDay.getMonth()+1).slice(-2);
+var whatYear  = lastDay.getFullYear();
+var firstDayString = String("0" + firstDay.getDate()).slice(-2) + whatMonth;
+var lastDayString  = String("0" + lastDay.getDate()).slice(-2) + whatMonth;
+if (VERBOSE) {
+    console.log("[MONTH] "+firstDayString+" - "+lastDayString);
+}
 
 // Logging in
 casper.start('https://ibank.klikbca.com', function() {
@@ -108,22 +107,17 @@ casper.start('https://ibank.klikbca.com', function() {
         document.getElementById('pswd').value    = password;
         document.querySelector("input[name='value(Submit)']").click();
     }, {username : username, password: password});
-    console.log("[LOGIN] " + username);
-});
-casper.then(function() {
-    if (DEBUG) {
-        this.capture('bca-login.png');
+    if (VERBOSE) {
+        console.log("[LOGIN] " + username);
     }
 });
-
 
 // Iterate Menu Link
 casper.then(function() {
     // validate it first!
     if (this.exists('#Layer1')) {
         // if we still found a layer1 - we still stuck on the login form
-        console.log("[ERR] Login Failed...");
-        die(422);
+        die(422, 'Login failed...');
     } else {
         isLoggedIn = true;
     }
@@ -140,34 +134,27 @@ casper.then(function() {
             return false;
         }
     });
-    if (!clickAccountInformation) {
-        die(500);
+    if (clickAccountInformation === false) {
+        return die(500, 'Evaluate error - probably a layout change?');
     }
 });
-casper.then(function() {
-    if (DEBUG) {
-        this.capture('bca-informasi-rekening.png');
-    }
-});
-
 
 // Iterate Menu link
 casper.then(function() {
-    casper.evaluate(function() {
+    var getMenu = casper.evaluate(function() {
         var menu = document.getElementsByName("menu")[0];
         var menuContent = menu.contentWindow;
-        if (typeof menuContent !== 'undefined' && menuContent != null) {
+        if (typeof menuContent !== 'undefined' && menuContent !== null) {
             var mutasiA = menuContent.document.getElementsByTagName("a")[2];
             mutasiA.click();
+            return true;
         }
+        return false;
     });
-});
-casper.then(function() {
-    if (DEBUG) {
-        this.capture('bca-mutasi.png');
+    if (getMenu === false) {
+        return die(500, 'Evaluate error - probably a layout change?');
     }
 });
-
 
 // download mutasi CSV
 casper.then(function() {
@@ -176,28 +163,25 @@ casper.then(function() {
         res.post = null;
         var menu = document.getElementsByName("atm")[0];
         var menuContent = menu.contentWindow;
-        if (typeof menuContent !== 'undefined' && menuContent != null) {
+        if (typeof menuContent !== 'undefined' && menuContent !== null) {
             f = menuContent.document.iBankForm;
-
             f.onsubmit = function() {
-                //iterate the form fields to construct POST
                 var post = {};
                 for (i = 0; i < f.elements.length; i++) {
                     post[f.elements[i].name] = f.elements[i].value;
                 }
                 res.action = f.action;
                 res.post   = post;
-                return false; //Stop form submission
+                return false;
             };
-
-            // trigger the `f.onsubmit` above
             var mutasiA = menuContent.document.getElementsByName("value(submit2)")[0];
+            console.log(mutasiA);
             mutasiA.click();
         }
         return res; //Return the form data to casper
     });
 
-    // alter the `res` - manipulate fDT and tDt
+    // alter the `res` - manipulate fDT and tDt manually
     delete res.post;
     res.post = {};
     res.post['value(fDt)'] = firstDayString;
@@ -230,7 +214,7 @@ casper.then(function() {
     }
     fileName = "mutasi_" + username+"_"+ whatYear + whatMonth + ".csv";
     casper.download(res.action, fileName, "POST", res.post);
-    console.log("[RES] = "+ fileName);
+    console.log(fileName);
 });
 
 casper.then(function() {
@@ -242,8 +226,7 @@ casper.then(function() {
     // if we found any indication of HTML table inside the CSV
     // then die properly
     if (content.indexOf("<table") !== -1) {
-        console.log("[ERR] Server is down");
-        die(500);
+        die(500, "Server is not ready to process");
     }
 });
 
