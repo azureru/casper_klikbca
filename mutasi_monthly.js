@@ -1,14 +1,12 @@
 // Download for BCA last month mutasi detail
-
-// how to run?
-// casperjs --ignore-ssl-errors=true mutasi_monthly.js username password
-// Will exit with code
+// casperjs mutasi_monthly.js username password
+// Will exit with code:
 //    0 success
 //    422 bad param / user / password
 //    500 error!
 
-var DEBUG   = false;
-var VERBOSE = false;
+var DEBUG   = true;
+var VERBOSE = true;
 
 var casper = require('casper').create({
     verbose  : VERBOSE,
@@ -85,6 +83,18 @@ casper.on("resource.error", function(resourceError) {
 // parse the username and password from param
 var username = casper.cli.args[0];
 var password = casper.cli.args[1];
+
+// additional optional targetPath
+var targetPath = '';
+if (casper.cli.args.length > 2) {
+    targetPath = casper.cli.args[2];
+}
+if (targetPath !== "") {
+    if (targetPath[targetPath.length-1] !== '/') {
+        targetPath = targetPath + '/';
+    }
+}
+
 
 // get date of last month
 var date     = new Date();
@@ -212,7 +222,7 @@ casper.then(function() {
     if (DEBUG) {
         util.dump(res);
     }
-    fileName = "mutasi_" + username+"_"+ whatYear + whatMonth + ".csv";
+    fileName = targetPath + "mutasi_" + username+"_"+ whatYear + whatMonth + ".csv";
     casper.download(res.action, fileName, "POST", res.post);
     console.log(fileName);
 });

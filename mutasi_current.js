@@ -1,8 +1,6 @@
 // Get Current Balance
-
-// how to run?
-// casperjs --ignore-ssl-errors=true mutasi_current.js username password
-// Will exit with code
+// casperjs mutasi_current.js username password
+// Will exit with code:
 //    0 success
 //    422 bad param / user / password
 //    500 error!
@@ -102,7 +100,7 @@ casper.then(function() {
     // validate it first!
     if (this.exists('#Layer1')) {
         // if we still found a layer1 - we still stuck on the login form
-        die(422, 'Login failed...');
+        die(422, 'Login failed...' + username);
     } else {
         isLoggedIn = true;
     }
