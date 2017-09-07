@@ -35,6 +35,7 @@ function die(optCode, msg) {
             if (optCode !== 0) {
                 console.log("[ERR] Forced logout..." + optCode);
             }
+            // random wait for 1-3 seconds
             var rand = (Math.random() * 2000) + 1000;
             casper.wait(rand, function() {
                 var location = casper.evaluate(function() {
@@ -138,6 +139,8 @@ casper.then(function() {
         return die(500, 'Evaluate error - probably a layout change?');
     }
 });
+
+// get balance
 casper.then(function() {
     var balance = this.page.evaluate(function() {
         var atm = document.getElementsByName("atm")[0];

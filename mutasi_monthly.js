@@ -222,7 +222,9 @@ casper.then(function() {
     if (DEBUG) {
         util.dump(res);
     }
-    fileName = targetPath + "mutasi_" + username+"_"+ whatYear + whatMonth + ".csv";
+    var month = lastDay.getMonth()+1;
+    month = String("0" + month).slice(-2);
+    fileName = targetPath + "mutasi_" + username+"_"+ whatYear + month + ".csv";
     casper.download(res.action, fileName, "POST", res.post);
     console.log(fileName);
 });
